@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌸 网懿云盘 - 小可爱的文件世界</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="main-body">
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <h1>网懿云盘</h1>
+                <span class="subtitle">文件管理世界</span>
+            </div>
+            <div class="user-info">
+                <span class="welcome">欢迎，{{ current_user.username }}！</span>
+                <a href="{{ url_for('logout') }}" class="logout-btn">退出登录</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 面包屑导航 -->
+    <nav class="breadcrumb">
+        <div class="breadcrumb-content">
+            {% for crumb in breadcrumbs %}
+                {% if loop.last %}
+                    <span class="breadcrumb-item current">{{ crumb.name }}</span>
+                {% else %}
+                    <a href="{{ url_for('index', path=crumb.path) }}" class="breadcrumb-item">{{ crumb.name }}</a>
+                    <span class="breadcrumb-separator">></span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </nav>
+
+    <!-- 消息提示 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- 操作按钮区域 -->
+    <div class="actions">
+        <div class="action-buttons">
+            <button class="action-btn primary" onclick="document.getElementById('fileInput').click()">
+                上传文件
+            </button>
+            <button class="action-btn secondary" onclick="showCreateFolder()">
+                新建文件夹
+            </button>
+            <button class="action-btn info" onclick="refreshPage()">
+                刷新页面
+            </button>
+        </div>
+    </div>
+
+    <!-- 文件上传表单 -->
+    <form id="uploadForm" action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" style="display: none;">
+        <input type="hidden" name="path" value="{{ current_path }}">
+        <input type="file" id="fileInput" name="file" multiple onchange="submitUpload()">
+    </form>
+
+    <!-- 上传进度条 -->
+    <div id="uploadProgress" class="progress-container" style="display: none;">
+        <div class="progress-header">
+            <h3>文件上传中</h3>
+            <button class="progress-close" onclick="hideUploadProgress()">×</button>
+        </div>
+        <div class="progress-content">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="progressText">0%</span>
+                <span id="progressStatus">准备上传...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建文件夹表单 -->
+    <form id="createFolderForm" action="{{ url_for('create_folder') }}" method="POST" style="display: none;">
+        <input type="hidden" name="path" value="{{ current_path }}">
+        <input type="text" id="folderNameInput" name="folder_name" placeholder="请输入文件夹名称～">
+    </form>
+
+    <!-- 主要内容区域 -->
+    <main class="main-content">
+        <div class="file-container">
+            <!-- 文件夹列表 -->
+            {% if folders %}
+                <div class="section">
+                    <h2 class="section-title">文件夹</h2>
+                    <div class="file-grid">
+                        {% for folder in folders %}
+                            <div class="file-item folder">
+                                <div class="file-icon">📁</div>
+                                <div class="file-info">
+                                    <div class="file-name">{{ folder.name }}</div>
+                                    <div class="file-meta">创建时间：{{ folder.created }}</div>
+                                </div>
+                                <div class="file-actions">
+                                    <a href="{{ url_for('index', path=folder.path) }}" class="action-link">打开</a>
+                                    <button class="action-link delete" onclick="deleteItem('{{ folder.path }}', '文件夹')">删除</button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- 文件列表 -->
+            {% if files %}
+                <div class="section">
+                    <h2 class="section-title">文件</h2>
+                    <div class="file-grid">
+                        {% for file in files %}
+                            {% if file.type == 'image' %}
+                                <!-- 图片直接显示 -->
+                                <div class="file-item image-preview-item">
+                                    <div class="image-preview">
+                                        <img src="{{ url_for('serve_file', filepath=file.path) }}" 
+                                             alt="{{ file.name }}" 
+                                             class="file-image"
+                                             onclick="openImagePreview('{{ url_for('serve_file', filepath=file.path) }}', '{{ file.name }}')">
+                                    </div>
+                                    <div class="file-info">
+                                        <div class="file-name">{{ file.name }}</div>
+                                        <div class="file-meta">
+                                            大小：{{ file.size }} | 创建时间：{{ file.created }}
+                                        </div>
+                                    </div>
+                                    <div class="file-actions">
+                                        <button class="action-link" onclick="downloadFile('{{ file.path }}', '{{ file.name }}')">下载</button>
+                                        <button class="action-link share" onclick="showShareOptions('{{ file.path }}', '{{ file.name }}', 'image')">分享</button>
+                                        <button class="action-link delete" onclick="deleteItem('{{ file.path }}', '文件')">删除</button>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <!-- 其他文件类型 -->
+                                <div class="file-item file">
+                                    <div class="file-icon">
+                                        {% if file.type == 'video' %}🎬
+                                        {% elif file.type == 'audio' %}🎵
+                                        {% elif file.type == 'text' %}📝
+                                        {% elif file.type == 'archive' %}📦
+                                        {% else %}📄
+                                        {% endif %}
+                                    </div>
+                                    <div class="file-info">
+                                        <div class="file-name">{{ file.name }}</div>
+                                        <div class="file-meta">
+                                            大小：{{ file.size }} | 创建时间：{{ file.created }}
+                                        </div>
+                                    </div>
+                                    <div class="file-actions">
+                                        {% if '.txt' in file.path or '.sh' in file.path %}
+                                            <a href="{{ url_for('preview_file', filepath=file.path) }}" class="action-link">预览</a>
+                                        {% endif %}
+                                        {% if file.type == 'video' or file.type == 'audio' %}
+                                            <a href="{{ url_for('preview_file', filepath=file.path) }}" class="action-link">预览</a>
+                                        {% endif %}
+                                        {% if file.type == 'archive' %}
+                                            <a href="{{ url_for('extract_file', filepath=file.path) }}" class="action-link">解压</a>
+                                        {% endif %}
+                                        <button class="action-link" onclick="downloadFile('{{ file.path }}', '{{ file.name }}')">下载</button>
+                                        <button class="action-link share" onclick="showShareOptions('{{ file.path }}', '{{ file.name }}', '{{ file.type }}')">分享</button>
+                                        <button class="action-link delete" onclick="deleteItem('{{ file.path }}', '文件')">删除</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- 空状态 -->
+            {% if not folders and not files %}
+                <div class="empty-state">
+                    <div class="empty-icon">📁</div>
+                    <h3>这里还是空的</h3>
+                    <p>快来上传一些文件或者创建文件夹吧！</p>
+                    <div class="empty-actions">
+                        <button class="action-btn primary" onclick="document.getElementById('fileInput').click()">
+                            上传文件
+                        </button>
+                        <button class="action-btn secondary" onclick="showCreateFolder()">
+                            新建文件夹
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- 删除确认对话框 -->
+    <div id="deleteModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>确认删除</h3>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除这个 <span id="deleteType"></span> 吗？</p>
+                <p class="warning">删除后无法恢复</p>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="hideDeleteModal()">取消</button>
+                <button class="action-btn danger" onclick="confirmDelete()">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建文件夹对话框 -->
+    <div id="folderModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建文件夹</h3>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="folderNameModal" placeholder="请输入文件夹名称" class="form-input">
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="hideFolderModal()">取消</button>
+                <button class="action-btn primary" onclick="createFolder()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片全屏预览模态框 -->
+    <div id="imagePreviewModal" class="image-preview-modal" style="display: none;">
+        <div class="image-preview-content">
+            <button class="image-preview-close" onclick="closeImagePreview()">×</button>
+            <img id="previewImage" src="" alt="">
+        </div>
+    </div>
+
+    <!-- 分享选项对话框 -->
+    <div id="shareModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>分享文件</h3>
+                <span id="shareFileName"></span>
+            </div>
+            <div class="modal-body">
+                <div class="share-options" id="shareOptions">
+                    <!-- 动态内容将通过JavaScript填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="hideShareModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载进度条 -->
+    <div id="downloadProgress" class="progress-container" style="display: none;">
+        <div class="progress-header">
+            <h3>文件下载中</h3>
+            <button class="progress-close" onclick="hideDownloadProgress()">×</button>
+        </div>
+        <div class="progress-content">
+            <div class="progress-bar">
+                <div class="progress-fill" id="downloadProgressFill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="downloadProgressText">0%</span>
+                <span id="downloadProgressStatus">准备下载...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

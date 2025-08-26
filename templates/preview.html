@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👀 预览 - {{ filename }} | 网懿云盘</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="preview-body">
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <h1>网懿云盘</h1>
+                <span class="subtitle">文件预览</span>
+            </div>
+            <div class="user-info">
+                <a href="{{ url_for('index') }}" class="back-btn">返回首页</a>
+                <a href="{{ url_for('logout') }}" class="logout-btn">退出登录</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 文件信息 -->
+    <div class="file-info-bar">
+        <div class="file-info-content">
+            <div class="file-name-display">
+                                 <span class="file-icon">
+                     {% if file_type == 'image' %}🖼️
+                     {% elif file_type == 'video' %}🎬
+                     {% elif file_type == 'audio' %}🎵
+                     {% else %}📄
+                     {% endif %}
+                 </span>
+                <span class="file-name">{{ filename }}</span>
+            </div>
+            <div class="file-actions">
+                <button class="action-btn primary" onclick="downloadFile('{{ filepath }}', '{{ filename }}')">下载</button>
+                <button class="action-btn secondary" onclick="copyUrl()">复制链接</button>
+                <button class="action-btn info" onclick="openFullscreen()">全屏查看</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 预览内容 -->
+    <main class="preview-content">
+        <div class="preview-container">
+            {% if file_type == 'image' %}
+                <!-- 图片预览 -->
+                <div class="image-preview">
+                    <img src="{{ url_for('serve_file', filepath=filepath) }}" 
+                         alt="{{ filename }}" 
+                         class="preview-image"
+                         onclick="openFullscreen()">
+                </div>
+            {% elif file_type == 'video' %}
+                <!-- 视频预览 -->
+                <div class="video-preview">
+                    <video controls class="preview-video" id="previewVideo">
+                        <source src="{{ url_for('serve_file', filepath=filepath) }}" type="{{ mime_type }}">
+                        您的浏览器不支持视频播放哦～
+                    </video>
+                </div>
+            {% elif file_type == 'audio' %}
+                <!-- 音频预览 -->
+                <div class="audio-preview">
+                    <audio controls class="preview-audio" id="previewAudio">
+                        <source src="{{ url_for('serve_file', filepath=filepath) }}" type="{{ mime_type }}">
+                        您的浏览器不支持音频播放哦～
+                    </audio>
+                </div>
+            {% elif content %}
+                <!-- 文本文件预览 -->
+                <div class="text-preview">
+                    <div class="text-content">
+                        <pre class="text-display">{{ content }}</pre>
+                    </div>
+                </div>
+            {% else %}
+                <!-- 其他文件类型 -->
+                <div class="other-preview">
+                    <div class="preview-placeholder">
+                        <div class="placeholder-icon">📄</div>
+                        <h3>这个文件类型暂时不支持预览</h3>
+                        <p>但是你可以下载下来查看！</p>
+                        <button class="action-btn primary" onclick="downloadFile('{{ filepath }}', '{{ filename }}')">
+                            下载文件
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- 文件链接信息 -->
+    <div class="url-info">
+        <div class="url-content">
+            <h3>文件链接</h3>
+            <div class="url-display">
+                <input type="text" 
+                       value="{{ request.host_url.rstrip('/') }}{{ url_for('serve_file', filepath=filepath) }}" 
+                       id="fileUrl" 
+                       readonly 
+                       class="url-input">
+                <button class="copy-btn" onclick="copyUrl()">复制</button>
+            </div>
+            <p class="url-note">这个链接可以直接分享给其他人查看文件</p>
+        </div>
+    </div>
+
+    <!-- 全屏预览模态框 -->
+    <div id="fullscreenModal" class="fullscreen-modal" style="display: none;">
+        <div class="fullscreen-content">
+            <div class="fullscreen-header">
+                <h3>{{ filename }}</h3>
+                <button class="close-btn" onclick="closeFullscreen()">关闭</button>
+            </div>
+            <div class="fullscreen-body">
+                {% if file_type == 'image' %}
+                    <img src="{{ url_for('serve_file', filepath=filepath) }}" 
+                         alt="{{ filename }}" 
+                         class="fullscreen-image">
+                {% elif file_type == 'video' %}
+                    <video controls class="fullscreen-video">
+                        <source src="{{ url_for('serve_file', filepath=filepath) }}" type="{{ mime_type }}">
+                    </video>
+                {% elif file_type == 'audio' %}
+                    <audio controls class="fullscreen-audio">
+                        <source src="{{ url_for('serve_file', filepath=filepath) }}" type="{{ mime_type }}">
+                    </audio>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载进度条 -->
+    <div id="downloadProgress" class="progress-container" style="display: none;">
+        <div class="progress-header">
+            <h3>文件下载中</h3>
+            <button class="progress-close" onclick="hideDownloadProgress()">×</button>
+        </div>
+        <div class="progress-content">
+            <div class="progress-bar">
+                <div class="progress-fill" id="downloadProgressFill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="downloadProgressText">0%</span>
+                <span id="downloadProgressStatus">准备下载...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/preview.js') }}"></script>
+</body>
+</html>
